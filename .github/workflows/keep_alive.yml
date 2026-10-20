@@ -1,17 +1,40 @@
-name: Keep Supabase Alive
+
+name: Supabase Keep Alive
 
 on:
   schedule:
-    - cron: '0 8 */3 * *'
+    # Run daily at 06:00 UTC
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 jobs:
-  ping:
+  keep-alive:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Ping Supabase
+      - name: Check Supabase database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/reports?limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          set -e
+
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "Missing GitHub Actions secrets."
+            exit 1
+          fi
+
+          response=$(curl --silent --show-error \
+            --output /tmp/supabase-response.txt \
+            --write-out "%{http_code}" \
+            --max-time 30 \
+            "$SUPABASE_URL/rest/v1/" \
+            -H "apikey: $SUPABASE_KEY")
+
+          echo "Supabase HTTP status: $response"
+
+          if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
+            cat /tmp/supabase-response.txt
+            exit 1
+          fi
+
+          echo "Supabase API responded successfully."
