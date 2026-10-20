@@ -3,7 +3,6 @@ name: Supabase Keep Alive
 
 on:
   schedule:
-    # Run daily at 06:00 UTC
     - cron: "0 6 * * *"
   workflow_dispatch:
 
@@ -11,30 +10,30 @@ jobs:
   keep-alive:
     runs-on: ubuntu-latest
     steps:
-      - name: Check Supabase database
+      - name: Ping Supabase database
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           set -e
 
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
-            echo "Missing GitHub Actions secrets."
-            exit 1
-          fi
-
           response=$(curl --silent --show-error \
-            --output /tmp/supabase-response.txt \
+            --output response.json \
             --write-out "%{http_code}" \
             --max-time 30 \
-            "$SUPABASE_URL/rest/v1/" \
-            -H "apikey: $SUPABASE_KEY")
+            --request POST \
+            "$SUPABASE_URL/rest/v1/rpc/keep_alive" \
+            --header "apikey: $SUPABASE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_KEY" \
+            --header "Content-Type: application/json" \
+            --data '{}')
 
-          echo "Supabase HTTP status: $response"
+          echo "HTTP status: $response"
+          cat response.json
 
           if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
-            cat /tmp/supabase-response.txt
+            echo "Database ping failed."
             exit 1
           fi
 
-          echo "Supabase API responded successfully."
+          echo "Database function executed successfully."
